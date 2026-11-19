@@ -532,7 +532,21 @@ function pngEncode(): Uint8Array {
 
 mkdirSync(OUTPUT_DIR, { recursive: true });
 render();
-writeFileSync(join(OUTPUT_DIR, 'meme.png'), pngEncode());
+const png = pngEncode();
+// Verify the encoded meme before writing it: PNG signature, the 'IHDR'
+// chunk tag, and its dimensions (width/height as big-endian uint32 at
+// offsets 16 and 20), plus the 'IEND' trailer at the end.
+const dv = new DataView(png.buffer, png.byteOffset, png.byteLength);
+const tag = (off: number) => String.fromCharCode(png[off], png[off + 1], png[off + 2], png[off + 3]);
+if (png[0] !== 137 || png[1] !== 80 || tag(12) !== 'IHDR' || tag(png.length - 8) !== 'IEND') {
+  console.error('meme.png failed PNG structure checks');
+  process.exit(1);
+}
+if (dv.getUint32(16) !== W || dv.getUint32(20) !== H) {
+  console.error(`meme.png has wrong dimensions: ${dv.getUint32(16)}x${dv.getUint32(20)}, expected ${W}x${H}`);
+  process.exit(1);
+}
+writeFileSync(join(OUTPUT_DIR, 'meme.png'), png);
 try {
   copyFileSync(join(BOT_DIR, 'POST.json'), join(OUTPUT_DIR, 'POST.json'));
 } catch (err) {
